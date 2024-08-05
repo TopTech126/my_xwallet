@@ -1,0 +1,86 @@
+diff --git a/node_modules/@rabby-wallet/eth-lattice-keyring/index.js b/node_modules/@rabby-wallet/eth-lattice-keyring/index.js
+index 67a31c3..1132fc9 100644
+--- a/node_modules/@rabby-wallet/eth-lattice-keyring/index.js
++++ b/node_modules/@rabby-wallet/eth-lattice-keyring/index.js
+@@ -446,7 +446,13 @@ class LatticeKeyring extends EventEmitter {
+ 
+   async _openConnectorTab(url) {
+     try {
++      if (chrome && chrome.tabs) {
++        const browserTab = await chrome.tabs.create({ url: url });
++        return { desktopChromium: browserTab };
++      }
++
+       const browserTab = window.open(url);
++      
+       // Preferred option for Chromium browsers. This extension runs in a window
+       // for Chromium so we can do window-based communication very easily.
+       if (browserTab) {
+@@ -469,7 +475,7 @@ class LatticeKeyring extends EventEmitter {
+   }
+ 
+   async _findTabById(id) {
+-    const tabs = await browser.tabs.query({});
++    const tabs = await (chrome || browser).tabs.query({});
+     return tabs.find((tab) => tab.id === id);
+   }
+ 
+@@ -516,7 +522,21 @@ class LatticeKeyring extends EventEmitter {
+               return reject(new Error('Lattice connector closed.'));
+             }
+           }, 500);
+-        } else if (conn.firefox) {
++        // } else if (conn.desktopChromium) {
++        //   // On a Chromium browser we can just listen for a window message
++        //   window.addEventListener('message', receiveMessage, false);
++        //   // Watch for the open window closing before creds are sent back
++        //   listenInterval = setInterval(() => {
++        //     this._findTabById(conn.desktopChromium.id).then(tab => {
++        //       if (!tab || !tab.url) {
++        //         clearInterval(listenInterval);
++        //         return reject(new Error('Lattice connector closed.'));
++        //       }
++        //     })
++        //   }, 500);
++        } else if (conn.desktopChromium || conn.firefox) {
++          const firefoxLikeTab = conn.desktopChromium || conn.firefox;
++          const browserHost = conn.desktopChromium ? chrome : browser;
+           // For Firefox we cannot use `window` in the extension and can't
+           // directly communicate with the tabs very easily so we use a
+           // workaround: listen for changes to the URL, which will contain
+@@ -525,16 +545,21 @@ class LatticeKeyring extends EventEmitter {
+           // host permissions in your manifest file (and also `activeTab` permission)
+           const loginUrlParam = '&loginCache=';
+           listenInterval = setInterval(() => {
+-            this._findTabById(conn.firefox.id).then((tab) => {
+-              if (!tab || !tab.url) {
++            this._findTabById(firefoxLikeTab.id).then((tab) => {
++              if (
++                (conn.firefox && (!tab || !tab.url))
++                || (conn.desktopChromium && !tab)
++              ) {
++                clearInterval(listenInterval);
+                 return reject(new Error('Lattice connector closed.'));
+               }
+               // If the tab we opened contains a new URL param
+-              const paramLoc = tab.url.indexOf(loginUrlParam);
++              const paramLoc = !tab ? -1 : tab.url.indexOf(loginUrlParam);
+               if (paramLoc < 0) return;
+               const dataLoc = paramLoc + loginUrlParam.length;
+               // Stop this interval
+               clearInterval(listenInterval);
++
+               try {
+                 // Parse the login data. It is a stringified JSON object
+                 // encoded as a base64 string.
+@@ -542,8 +567,9 @@ class LatticeKeyring extends EventEmitter {
+                   tab.url.slice(dataLoc),
+                   'base64'
+                 ).toString();
++
+                 // Close the tab and return the credentials
+-                browser.tabs.remove(tab.id).then(() => {
++                browserHost.tabs.remove(tab.id).then(() => {
+                   const creds = JSON.parse(_creds);
+                   if (!creds.deviceID || !creds.password)
+                     return reject(

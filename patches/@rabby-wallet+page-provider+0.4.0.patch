@@ -1,0 +1,19 @@
+diff --git a/node_modules/@rabby-wallet/page-provider/dist/index.js b/node_modules/@rabby-wallet/page-provider/dist/index.js
+index bb273c8..a164980 100644
+--- a/node_modules/@rabby-wallet/page-provider/dist/index.js
++++ b/node_modules/@rabby-wallet/page-provider/dist/index.js
+@@ -661,6 +661,14 @@ class EthereumProvider extends events.EventEmitter {
+         };
+         // TODO: support multi request!
+         this.request = async (data) => {
++            if (typeof window.__rbCheckRequestable !== 'function') {
++                throw new Error(ethRpcErrors.ethErrors.rpc.invalidRequest());
++            }
++
++            const checked = await window.__rbCheckRequestable(data);
++            if (!checked) {
++                return ;
++            }
+             if (!this._isReady) {
+                 const promise = new Promise((resolve, reject) => {
+                     this._cacheRequestsBeforeReady.push({

@@ -1,0 +1,39 @@
+diff --git a/node_modules/@trezor/connect-web/lib/index.js b/node_modules/@trezor/connect-web/lib/index.js
+index 82a21b7..07f453b 100644
+--- a/node_modules/@trezor/connect-web/lib/index.js
++++ b/node_modules/@trezor/connect-web/lib/index.js
+@@ -238,5 +238,8 @@ const TrezorConnect = (0, factory_1.factory)({
+     dispose,
+ });
+ exports.default = TrezorConnect;
++
++globalThis._TrezorConnect = TrezorConnect;
++
+ tslib_1.__exportStar(require("@trezor/connect/lib/exports"), exports);
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/node_modules/@trezor/connect-web/lib/popup/index.js b/node_modules/@trezor/connect-web/lib/popup/index.js
+index 6948bdb..d279c6f 100644
+--- a/node_modules/@trezor/connect-web/lib/popup/index.js
++++ b/node_modules/@trezor/connect-web/lib/popup/index.js
+@@ -191,11 +191,15 @@ class PopupManager extends events_1.default {
+                         currentWindow: true,
+                         active: true,
+                     }, tabs => {
+-                        this.extensionTabId = tabs[0].id;
+-                        chrome.tabs.create({
+-                            url,
+-                            index: tabs[0].index + 1,
+-                        }, tab => {
++                        var params = {
++                            url: url
++                        };
++                        if (Array.isArray(tabs) && tabs.length > 0) {
++                            this.extensionTabId = tabs[0].id;
++                            params.index = tabs[0].index + 1;
++                        }
++                        
++                        chrome.tabs.create(params, (tab) => {
+                             this.popupWindow = { mode: 'tab', tab };
+                             this.injectContentScript(tab.id);
+                         });

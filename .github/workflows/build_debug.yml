@@ -1,0 +1,95 @@
+# Each PR will build debug that help to check if build works as expect.
+
+name: Test Build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+defaults:
+  run:
+    shell: bash -leo pipefail {0}
+
+jobs:
+  # Prepare node modules. Reuse cache if available
+  setup:
+    name: prepare build
+    runs-on: [self-hosted, X64, Linux, builder]
+    env:
+      NODE_OPTIONS: '--max_old_space_size=4096'
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: Env Test
+        id: env-test
+        run: |
+          echo "whoami $(whoami)"
+          echo "shell is $(echo $0)"
+          echo "which node $(which node)"
+
+      # - name: Setup node
+      #   uses: actions/setup-node@v3
+      #   with:
+      #     node-version: '16.14'
+      #     cache: 'yarn'
+
+      # - name: Get yarn cache directory path
+      #   id: yarn-cache-dir-path
+      #   run: echo "::set-output name=dir::$(yarn cache dir)"
+
+      # - uses: actions/cache@v3
+      #   id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+      #   with:
+      #     path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+      #     key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+
+      # - uses: actions/cache@v3
+      #   id: yarn-node_modules # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+      #   with:
+      #     path: node_modules
+      #     key: ${{ runner.os }}-node_modules-${{ hashFiles('**/yarn.lock') }}
+
+      # - name: Get Yarn Cache
+      #   if: steps.yarn-cache.outputs.cache-hit == 'true'
+      #   run: yarn --prefer-offline
+
+      - name: Use NPM Token with organization read access
+        uses: heisenberg-2077/use-npm-token-action@v1
+        with:
+          token: '${{ secrets.NPM_AUTH_TOKEN }}'
+
+      # - name: Install Dependencies
+      #   if: steps.yarn-cache.outputs.cache-hit != 'true'
+      #   run: yarn install --frozen-lockfile
+
+  build-debug:
+    name: build debug
+    runs-on: [self-hosted, X64, Linux, builder]
+    needs: setup
+    env:
+      NODE_OPTIONS: '--max_old_space_size=4096'
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+
+      - uses: actions/cache@v3
+        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+
+      - uses: actions/cache@v3
+        id: yarn-node_modules # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node_modules-${{ hashFiles('**/yarn.lock') }}
+
+      - name: build
+        run: |
+          export NO_UPLOAD=1;
+          sh ./scripts/pack.sh;
